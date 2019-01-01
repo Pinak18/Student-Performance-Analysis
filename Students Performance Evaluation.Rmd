@@ -1,0 +1,386 @@
+---
+title: "Student Performance in Exams"
+author: "Pinak Kapalay"
+date: "December 31, 2018"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+Dataset: We have a data set named as students performance in a test. The Variables being: Gender, Race.Ethnicity, Parental Level fo Education, Lunch, Test Course Preparation, Math.score, Reading.score and Writing Score.
+
+Inspiration: To find out, the significant variables affecting the scores of students and studying their relationship with the Math, Reading and Writing scores. Finally giving a suitable conclusion from the findings.
+
+
+Title: Students Performance in the test.
+```{r}
+library(ggplot2)
+library(corrplot)
+library(MASS)
+library(DAAG)
+library(HH)
+library(caret)
+library(dplyr)
+library(RColorBrewer)
+library(ggthemes)
+library(ggrepel)
+library(gridExtra)
+library(descr)
+```
+ 
+```{r}
+sp <- read.csv("StudentsPerformance.csv", na.strings = c("","NA"))
+View(sp)
+str(sp)
+summary(sp)
+```
+Comments: We view the Data Frame, Structure and Summary of the data frame sp.
+
+```{r}
+apply(is.na(sp),2,sum)
+```
+Comments: Checking for any NAs available in the data frame.
+
+```{r}
+cat.math.score <- as.factor(sp$math.score)
+cat.reading.score <- as.factor(sp$reading.score)
+cat.writing.score <- as.factor(sp$writing.score)
+
+new_sp <- cbind(sp,cat.math.score,cat.reading.score,cat.writing.score)
+
+View(new_sp)
+str(new_sp)
+```
+Comments: Changing the numeric variables into catagorical or factors for the chi-sq test.
+          Appending the 3 newly created factor variables to the original dataset.
+
+Checking independence of variables using a Chi-Sq test:
+Generally, a chi-sq test is employed to check the dependence of two variables (factors) with levels > 2.
+We will check the independence of Math, Reading and Writing scores with respect to Parental Level of Education and Race.Ethnicity.
+
+Checking Independence of math score:
+
+```{r}
+table(new_sp$parental.level.of.education,new_sp$cat.math.score)
+chisq.test(table(new_sp$parental.level.of.education,new_sp$cat.math.score))
+```
+
+The p-value for the test is 0.20, hence the two variables are not associated.
+
+```{r}
+table(new_sp$race.ethnicity,new_sp$cat.math.score)
+chisq.test(table(new_sp$race.ethnicity,new_sp$cat.math.score))
+```
+
+The p-value for the test is 0.065, which suggests that, the two variables are not associated much to each other.
+Hence, we can ignore race.ethnicity in this.
+
+Checking Independence of reading score:
+
+```{r}
+table(new_sp$parental.level.of.education,new_sp$cat.reading.score)
+chisq.test(table(new_sp$parental.level.of.education,new_sp$cat.reading.score))
+```
+
+The p-value is 0.2036, hence both variables are independent.
+
+```{r}
+table(new_sp$race.ethnicity,new_sp$cat.reading.score)
+chisq.test(table(new_sp$race.ethnicity,new_sp$cat.reading.score))
+```
+
+The p-value for the two variables is 0.02168, hence, the two variables are not independent of each other.
+They have relation with each other, i.e. race affects the reading score.
+
+Checking the independence of writing scores:
+
+```{r}
+table(new_sp$parental.level.of.education,new_sp$cat.writing.score)
+chisq.test(table(new_sp$parental.level.of.education,new_sp$cat.writing.score))
+```
+
+The p-value for the test is 0.01063, hence both these variables are correlated and significant.
+
+```{r}
+table(new_sp$race.ethnicity,new_sp$cat.writing.score)
+chisq.test(table(new_sp$race.ethnicity,new_sp$cat.writing.score))
+```
+
+The p-value for the test is 0.03946, hence both these variables are correlated and significant.
+
+Conclusion from Chi Sq test suggests that,
+1. The Parent's level of education has an impact on the writing scores of the students.
+2. The Race.ethnicity has an impact on reading as well as on the writing score.
+3. Hence the plot of these variables are significant and rest combinations can very well be ignored.
+
+We create and append the dummy variables (only for factors with level 2) and convert the catagorical values into numeric.
+
+```{r}
+new_sp$dummy_gender = ifelse(new_sp$gender=="male",1,0)
+new_sp$dummy_lunch = ifelse(new_sp$lunch=="standard",1,0)
+new_sp$dummy_test.preparation.course = ifelse(new_sp$test.preparation.course=="completed",1,0)
+
+str(new_sp)
+
+numric <- new_sp[sapply(new_sp,is.numeric)]
+descrCor <- cor(numric)
+View(descrCor)
+corrplot(descrCor)
+```
+
+Here, we find correlation of all the numeric variables and plot it using a corrplot.
+
+```{r}
+highlycorrelated = findCorrelation(descrCor,cutoff = 0.8)
+highlycorrelated
+```
+
+Math score Linear Model:
+
+```{r}
+sp.math <- new_sp[c(6,12,13,14)]
+
+set.seed(108)
+s <- sample(1:nrow(sp.math),0.75*nrow(sp.math))   # Using 75% of the original data as out training data and remaining as the testing data.
+train <- sp.math[s,]
+test <- sp.math[-s,]
+View(s)
+View(train)
+View(test)
+ncol(test)
+
+fit <- lm(math.score~. ,data = train)
+summary(fit)
+```
+
+The summary gives us the p-values and hence the significant variables which determine the values of math score.
+The p-values suggest a strong correlation between math score Vs gender,lunch and test.prep.course.
+
+
+Reading score Linear Model:
+
+```{r}
+sp.read <- new_sp[c(7,12,13,14)]
+
+set.seed(108)
+s <- sample(1:nrow(sp.read),0.75*nrow(sp.read))
+train <- sp.read[s,]
+test <- sp.read[-s,]
+View(s)
+View(train)
+View(test)
+ncol(test)
+
+fit <- lm(reading.score~. ,data = train)
+summary(fit)
+```
+
+The summary gives us the p-values and hence the significant variables which determine the values of reading score.
+The p-values suggest a strong correlation between reading score Vs gender,lunch and test.prep.course.
+
+
+Writing score Linear Model:
+
+```{r}
+sp.write <- new_sp[c(8,12,13,14)]
+
+set.seed(108)
+s <- sample(1:nrow(sp.write),0.75*nrow(sp.write))   
+train <- sp.write[s,]
+test <- sp.write[-s,]
+View(s)
+View(train)
+View(test)
+ncol(test)
+
+fit <- lm(writing.score~. ,data = train)
+summary(fit)
+```
+
+The summary gives us the p-values and hence the significant variables which determine the values of writing score.
+The p-values suggest a strong correlation between writing score Vs gender,lunch and test.prep.course.
+
+
+Now we plot significant variables vs the scores and study the plots:
+
+1. Boxplot for Math Score Vs Gender
+
+```{r}
+group_by(sp,gender) %>%
+  ggplot(aes(x = factor(gender), y = math.score, fill = gender))+geom_boxplot(colours = rev(brewer.pal(10,'Spectral'))) +
+  stat_summary(fun.y=mean, geom="point", shape=20, size=15, color="red", fill="red") +
+  xlab("Gender") +ylab("Math Score")+ggtitle('Boxplot of the Math Scores by Gender')
+```
+
+It can be clearly seen that the male students have a higher mark range compared to the female students. The mean for the male catagory is higher compared to the female.
+
+2. Boxplot for Math Score Vs Lunch    
+
+```{r}
+group_by(sp,lunch) %>%
+  ggplot(aes(x = factor(lunch), y = math.score, fill = lunch)) + 
+  geom_boxplot(colours = rev(brewer.pal(10,'Spectral'))) +
+  stat_summary(fun.y=mean, geom="point", shape=20, size=15, color="red", fill="red") +
+  xlab("Lunch Status") +
+  ylab("Math Score") +ggtitle('Boxplot of the Math Scores by Lunch Status')
+```
+
+It can very well be concluded that, the students who had standard lunch, have fared well in Math as compared to those who had free/reduced lunch.
+
+3. Boxplot for Math Score Vs Test Preparation Course    
+
+```{r}
+sp %>%
+  group_by(test.preparation.course) %>%
+  ggplot(aes(x = factor(test.preparation.course), y = math.score, fill = test.preparation.course)) + 
+  geom_boxplot(colours = rev(brewer.pal(10,'Spectral'))) +
+  stat_summary(fun.y=mean, geom="point", shape=20, size=15, color="red", fill="red") +
+  xlab("Test Preparation Status") +
+  ylab("Math Score") +
+  theme(legend.position ='none',axis.title.y = element_text(size=50), axis.text.y = element_text(size = 25),axis.title.x = element_text(size=50),axis.text.x = element_text(size = 45), plot.title = element_text(size=50, hjust = 0.5)) +
+  ggtitle('Boxplot of the Math Scores by Test Preparation Status')
+```
+
+The students who had completed the test preparation course have done well in math compared to those who have not.
+
+4. Boxplot for Reading Score Vs Gender
+
+```{r}
+group_by(sp,gender) %>%
+  ggplot(aes(x = factor(gender), y = reading.score, fill = gender))+geom_boxplot(colours = rev(brewer.pal(10,'Spectral'))) +
+  stat_summary(fun.y=mean, geom="point", shape=20, size=15, color="red", fill="red") +
+  xlab("Gender") +ylab("Read Score")+ggtitle('Boxplot of the Read Scores by Gender')
+```
+
+From this plot, it can be concluded, that the female students have performed well at reading and overall have a higer score compared to the male students. Even the mean for the female catagory is higher compared to the male catagory.
+
+5. Boxplot for Reading Score Vs Lunch    
+
+```{r}
+group_by(sp,lunch) %>%
+  ggplot(aes(x = factor(lunch), y = reading.score, fill = lunch)) + 
+  geom_boxplot(colours = rev(brewer.pal(10,'Spectral'))) +
+  stat_summary(fun.y=mean, geom="point", shape=20, size=15, color="red", fill="red") +
+  xlab("Lunch Status") +
+  ylab("Read Score") +ggtitle('Boxplot of the Read Scores by Lunch Status')
+```
+
+The students who had a standard lunch performed well at reading compared to those who had free/reduced lunch.
+
+6. Boxplot for Reading Score Vs Test Preparation Course    
+
+```{r}
+sp %>%
+  group_by(test.preparation.course) %>%
+  ggplot(aes(x = factor(test.preparation.course), y = reading.score, fill = test.preparation.course)) + 
+  geom_boxplot(colours = rev(brewer.pal(10,'Spectral'))) +
+  stat_summary(fun.y=mean, geom="point", shape=20, size=15, color="red", fill="red") +
+  xlab("Test Preparation Status") +
+  ylab("Read Score") +
+  theme(legend.position ='none',axis.title.y = element_text(size=50), axis.text.y = element_text(size = 25),axis.title.x = element_text(size=50),axis.text.x = element_text(size = 45), plot.title = element_text(size=50, hjust = 0.5)) +
+  ggtitle('Boxplot of the Read Scores by Test Preparation Status')
+```
+
+ It is clearly visible that the students who completed the test preparation course have performed better at reading compared to those who have not.
+
+7. Boxplot for Writing Score Vs Gender
+
+```{r}
+group_by(sp,gender) %>%
+  ggplot(aes(x = factor(gender), y = writing.score, fill = gender))+geom_boxplot(colours = rev(brewer.pal(10,'Spectral'))) +
+  stat_summary(fun.y=mean, geom="point", shape=20, size=15, color="red", fill="red") +
+  xlab("Gender") +ylab("Write Score")+ggtitle('Boxplot of the Write Scores by Gender')
+```
+
+From the above plot, it can be inferred that the female students have performed better at writing compared to th male students.
+
+8. Boxplot for Writing Score Vs Lunch    
+
+```{r}
+group_by(sp,lunch) %>%
+  ggplot(aes(x = factor(lunch), y = writing.score, fill = lunch)) + 
+  geom_boxplot(colours = rev(brewer.pal(10,'Spectral'))) +
+  stat_summary(fun.y=mean, geom="point", shape=20, size=15, color="red", fill="red") +
+  xlab("Lunch Status") +
+  ylab("Write Score") +ggtitle('Boxplot of the Write Scores by Lunch Status')
+```
+
+The students who had a standard lunch fared well at writing compared to those who had free/reduced lunch.
+
+9. Boxplot for Writing Score Vs Test Preparation Course    
+
+```{r}
+sp %>%
+  group_by(test.preparation.course) %>%
+  ggplot(aes(x = factor(test.preparation.course), y = writing.score, fill = test.preparation.course)) + 
+  geom_boxplot(colours = rev(brewer.pal(10,'Spectral'))) +
+  stat_summary(fun.y=mean, geom="point", shape=20, size=15, color="red", fill="red") +
+  xlab("Test Preparation Status") +
+  ylab("Write Score") +
+  theme(legend.position ='none',axis.title.y = element_text(size=50), axis.text.y = element_text(size = 25),axis.title.x = element_text(size=50),axis.text.x = element_text(size = 45), plot.title = element_text(size=50, hjust = 0.5)) +
+  ggtitle('Boxplot of the Write Scores by Test Preparation Status')
+```
+
+The students who completed the test preparation score have performed far better compared to the students who did not.
+
+10. Boxplot for Writing Score Vs Parental Level of Education
+
+```{r}
+group_by(sp,parental.level.of.education) %>%
+  ggplot(aes(x = factor(parental.level.of.education), y = writing.score, fill = parental.level.of.education)) + 
+  geom_boxplot(colours = rev(brewer.pal(10,'Spectral'))) +
+  stat_summary(fun.y=mean, geom="point", shape=20, size=15, color="red", fill="red") +
+  xlab("Parent Education Level") +ylab("Write Score") +coord_flip() +
+  ggtitle('Boxplot of the Write Scores by Parental Level of Education')
+```
+
+Students whose parents had a Master's Degree performed the best and the students, whose parents were high school graduates performed the worst. Hence, the parental level of education was found to have an impact on the student's performance in the writing test.
+
+11. Boxplot for Reading Score Vs Race.Ethnicity
+
+```{r}
+group_by(sp,race.ethnicity) %>%
+  ggplot(aes(x = factor(race.ethnicity), y = reading.score, fill = race.ethnicity)) + 
+  geom_boxplot(colours = rev(brewer.pal(10,'Spectral'))) +
+  stat_summary(fun.y=mean, geom="point", shape=20, size=15, color="red", fill="red") +
+  xlab("Race.Ethnicity") +ylab("Read Score") +coord_flip() +
+  ggtitle('Boxplot of the Read Scores by Race.Ethnicity')
+```
+
+The students belonging to the Group E race have secured the highest range of marks and those belonging to Group A have secured the least range of marks.
+
+12. Boxplot for Writing Score Vs Race.Ethnicity
+
+```{r}
+group_by(sp,race.ethnicity) %>%
+  ggplot(aes(x = factor(race.ethnicity), y = writing.score, fill = race.ethnicity)) + 
+  geom_boxplot(colours = rev(brewer.pal(10,'Spectral'))) +
+  stat_summary(fun.y=mean, geom="point", shape=20, size=15, color="red", fill="red") +
+  xlab("Race.Ethnicity") +ylab("Write Score") +coord_flip() +
+  ggtitle('Boxplot of the Write Scores by Race.Ethnicity')
+```
+
+The students belonging to the Group E race have secured the highest range of marks and those belonging to Group A have secured the least range of marks.
+
+
+Conclusions:
+
+ 1. The male students have a higher mark range for a Math test, compared to the female students. The mean for the male catagory is higher compared to the female.
+ 2. It can very well be concluded that, the students who had standard lunch, have fared well in Math as compared to those who had free/reduced lunch.
+ 3. The students who had completed the test preparation course have done well in Math compared to those who have not.
+ 4. It can be concluded, that the female students have performed well at reading and overall have a higer score compared to the male students. Even the mean for the female catagory is higher compared to the male catagory.
+ 5. The students who had a standard lunch performed well at reading compared to those who had free/reduced lunch.
+ 6. It is clearly visible that the students who completed the test preparation course have performed better at reading compared to those who have not.
+ 7. It can be inferred that the female students have performed better at writing compared to th male students.
+ 8. The students who had a standard lunch fared well at writing compared to those who had free/reduced lunch.
+ 9. The students who completed the test preparation score have performed far better in the writing test, compared to the students who did not.
+ 10. Students whose parents had a Master's Degree performed the best and the students, whose parents were high school graduates performed the worst in writing test. Hence, the parental level of education was found to have an impact on the student's performance in the writing test.
+ 11. The students belonging to the Group E race have secured the highest range of marks and those belonging to Group A have secured the least range of marks in the reading test.
+ 12. The students belonging to the Group E race have secured the highest range of marks and those belonging to Group A have secured the least range of marks in a writing test.
+
+ Deductions:
+
+ 1. Math Test : According to the observations, a Male student who has a standard lunch and completes the test preparation course has the highest chances of getting a good Math score.
+ 2. Reading Score: A female student, who has standard lunch, completes the test course preparation and belongs to Group E ethnicity has the best possibility to get a good reading score.
+ 3. Writing Score: A female student, who has a standard lunch, completes the test course preparation, belonging to Group E Ethnicity and having Parents with Master's degree, has the highest possibility of getting a good writing score.
